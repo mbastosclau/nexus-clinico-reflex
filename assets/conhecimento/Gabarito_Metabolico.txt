@@ -1,0 +1,26 @@
+EIXO GLICÊMICO E INSULÍNICO
+- Glicemia de Jejum: Normal < 100 mg/dL; Glicemia de jejum alterada 100 a 125 mg/dL; Diagnóstico de Diabetes Mellitus $\ge 126$ mg/dL (necessita confirmação).
+- Glicemia 2h após TOTG (Teste Oral de Tolerância à Glicose): Normal < 140 mg/dL; Intolerância à glicose 140 a 199 mg/dL; Diagnóstico de Diabetes $\ge 200$ mg/dL.
+- Glicemia Aleatória / ao Acaso: $\ge 200$ mg/dL acompanhada de sintomas clássicos diagnostica diabetes.
+- Hemoglobina Glicada (HbA1c): Normal 4% a 6%; Pré-diabetes 5,7% a 6,4%; Diagnóstico de Diabetes Mellitus $\ge 6,5\%$ (método NGSP).
+- Metas Terapêuticas HbA1c: Adultos < 7%; Gestantes $\le 6\%$; Idosos saudáveis 7% a 7,5% (flexibilizado conforme comorbidades).
+- Glicemia Média Estimada (eAG): Calculada por $28,7 \times \text{A1C} - 46,7$ (expressa em mg/dL).
+- Regra de Decisão: Glicemia de jejum alterada exige cruzamento obrigatório com a HbA1c para o diagnóstico definitivo.
+
+EIXO LIPÍDICO
+- LDL-c (Metas Terapêuticas por Risco): Risco Baixo < 130 mg/dL; Risco Intermediário < 100 mg/dL; Risco Alto < 70 mg/dL; Risco Muito Alto < 50 mg/dL.
+- Não HDL-c: Metas por risco: Baixo < 160 mg/dL; Intermediário < 130 mg/dL; Alto < 100 mg/dL; Muito Alto < 80 mg/dL.
+- Colesterol Total (CT): Desejável < 190 mg/dL; Valores $\ge 310$ mg/dL em adultos (ou $\ge 230$ mg/dL de 2 a 19 anos) indicam alerta para Hipercolesterolemia Familiar (HF).
+- HDL-c: Desejável > 40 mg/dL (não é recomendado tratamento focado exclusivamente na sua elevação).
+- Triglicerídeos: Desejável < 150 mg/dL com jejum de 12h, ou < 175 mg/dL sem jejum.
+- Alertas e Riscos nos Triglicerídeos: > 440 mg/dL em amostra sem jejum exige nova coleta com jejum obrigatório; $\ge 500$ mg/dL impõe terapia imediata para prevenção de pancreatite.
+- Regra do LDL Calculado vs. Direto: A fórmula de Friedewald é inadequada e não deve ser usada se os triglicerídeos forem $\ge 400$ mg/dL (recorrer à dosagem direta ou fórmula de Martin).
+- Flexibilização do Jejum: O perfil lipídico pode ser avaliado sem jejum na rotina de risco cardiovascular.
+
+FUNÇÃO RENAL E HEPÁTICA
+- Taxa de Filtração Glomerular Estimada (eGFR / TFGe): $< 60$ mL/min/1,73 m² define Doença Renal Crônica (fase não dialítica) e classifica o paciente automaticamente em Alto Risco cardiovascular.
+- Transaminases (TGO/TGP / AST/ALT): Elevação $> 3$ vezes o limite superior da normalidade indica potencial hepatotoxicidade, exigindo reavaliação ou suspensão de fármacos (ex: estatinas).
+- Uroanálise: Achados no sedimento urinário devem ser cruzados diretamente com a taxa de filtração glomerular e níveis de albuminúria.
+
+EIXO TIREOIDIANO
+- O hipotireoidismo deve ser investigado como causa secundária de dislipidemia.

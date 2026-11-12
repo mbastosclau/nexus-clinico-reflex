@@ -1,0 +1,6 @@
+reflex
+supabase
+anthropic
+PyPDF2
+fpdf
+python-dotenv
