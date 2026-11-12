@@ -186,8 +186,13 @@ def dashboard_principal() -> rx.Component:
                             rx.heading("2. Importação de Exames", size="4", color="#334155"),
                             rx.text("Exames de Sangue e Bioimpedância (Múltiplos PDFs)", weight="bold", size="2"),
                             
-                            rx.upload(rx.text("Arraste todos os laudos (Sangue + InBody) aqui"), id="upload_exames", multiple=True, border="2px dashed #94a3b8", padding="4", width="100%"),
-                            rx.text(rx.selected_files("upload_exames"), size="2", color="#0369a1"),
+                            rx.upload(
+    				rx.text("Arraste os exames aqui (Sangue, Bioimpedância, etc)"),
+    				id="upload_exames",
+    				multiple=True, # <-- ESTA É A LINHA QUE FALTA
+    				border="1px dotted black",
+    				padding="2em",
+		            )
                             
                             rx.button(
                                 "PROCESSAR DOSSIÊ EXECUTIVO", 
