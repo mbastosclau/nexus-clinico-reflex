@@ -180,28 +180,35 @@ def dashboard_principal() -> rx.Component:
                         width="100%", padding="5", margin_bottom="4"
                     ),
                     
-                    # UPLOADS UNIFICADOS
+                   # UPLOADS UNIFICADOS
                     rx.card(
                         rx.vstack(
                             rx.heading("2. Importação de Exames", size="4", color="#334155"),
                             rx.text("Exames de Sangue e Bioimpedância (Múltiplos PDFs)", weight="bold", size="2"),
                             
                             rx.upload(
-    				rx.text("Arraste os exames aqui (Sangue, Bioimpedância, etc)"),
-    				id="upload_exames",
-    				multiple=True, # <-- ESTA É A LINHA QUE FALTA
-    				border="1px dotted black",
-    				padding="2em",
-		            )
+                                rx.text("Arraste os exames aqui (Sangue, Bioimpedância, etc)"),
+                                id="upload_exames",
+                                multiple=True,
+                                border="1px dotted black",
+                                padding="2em",
+                            ),
                             
                             rx.button(
                                 "PROCESSAR DOSSIÊ EXECUTIVO", 
                                 on_click=ClinicoState.processar_laudo(rx.upload_files(upload_id="upload_exames")), 
-                                loading=ClinicoState.em_processamento, width="100%", size="4", background_color="#1e3a8a", color="white", margin_top="4"
+                                loading=ClinicoState.em_processamento, 
+                                width="100%", 
+                                size="4", 
+                                background_color="#1e3a8a", 
+                                color="white", 
+                                margin_top="4"
                             ),
                             width="100%"
                         ),
-                        width="100%", padding="5", margin_bottom="4"
+                        width="100%", 
+                        padding="5", 
+                        margin_bottom="4"
                     ),
                     
                     # RESULTADO E PDF
@@ -218,13 +225,6 @@ def dashboard_principal() -> rx.Component:
                         ),
                         rx.text("")
                     ),
-                    width="100%", max_width="900px", margin="0 auto"
-                )
-            ),
-            width="100%", height="100vh", overflow_y="auto", padding="10", background_color="#f8fafc"
-        ),
-        width="100vw", height="100vh"
-    )
 
 def index():
     return rx.cond(ClinicoState.esta_autenticado, dashboard_principal(), tela_login())
