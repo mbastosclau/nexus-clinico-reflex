@@ -174,7 +174,7 @@ def dashboard_principal() -> rx.Component:
                                 width="100%"
                             ),
                             rx.button("💾 Salvar Perfil (Sem Exame)", on_click=ClinicoState.salvar_perfil_biometrico, color_scheme="gray", variant="outline", margin_top="2"),
-                            rx.box(rx.text("Contexto (Opcional)"), rx.text_area(placeholder="Uso de medicamentos, sintomas, rotina alimentar...", on_change=ClinicoState.set_contexto_clinico, width="100%"), width="100%", margin_top="2"),
+                            rx.box(rx.text("Contexto (Opcional)"), rx.text_area(placeholder="Uso de medicamentos, sintomas, rotina alimentar...", 						                    on_change=ClinicoState.set_contexto_clinico, width="100%"), width="100%", margin_top="2"),
                             width="100%", align_items="start"
                         ),
                         width="100%", padding="5", margin_bottom="4"
@@ -225,9 +225,10 @@ def dashboard_principal() -> rx.Component:
                         ),
                         rx.text("")
                     ),
-
-def index():
-    return rx.cond(ClinicoState.esta_autenticado, dashboard_principal(), tela_login())
-
-app = rx.App()
-app.add_page(index)
+                    width="100%", max_width="900px", margin="0 auto"
+                ) # <-- ESTE FECHA O SEU VSTACK DA LINHA 124
+            ), # <-- ESTE FECHA A CAIXA (BOX) PRINCIPAL DA TELA
+            width="100%", height="100vh", overflow_y="auto", padding="10", background_color="#f8fafc"
+        ),
+        width="100vw", height="100vh"
+    ) # <-- ESTE FECHA O CONDICIONAL DO PACIENTE ATIVO E O FICHEIRO
