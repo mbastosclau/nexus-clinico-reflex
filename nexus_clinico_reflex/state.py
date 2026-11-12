@@ -2,6 +2,7 @@ import reflex as rx
 from supabase import create_client, Client
 import os
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Importações dos nossos módulos dedicados no backend
@@ -43,6 +44,10 @@ class ClinicoState(rx.State):
 
     em_processamento: bool = False
     laudo_texto: str = ""
+    
+    # Variáveis para acumular múltiplos exames (Sangue + Bioimpedância)
+    arquivos_processados: list[str] = []
+    texto_exames_acumulado: str = ""
 
     def set_email_login(self, email: str): self.email_login = email
     def set_senha_login(self, senha: str): self.senha_login = senha
@@ -81,6 +86,8 @@ class ClinicoState(rx.State):
         self.usuario_id = ""
         self.paciente_ativo = ""
         self.laudo_texto = ""
+        self.arquivos_processados = []
+        self.texto_exames_acumulado = ""
 
     def get_pasta_bd(self) -> str:
         pasta = f"banco_pacientes_{self.usuario_id}"
@@ -98,6 +105,8 @@ class ClinicoState(rx.State):
         self.paciente_ativo = nome
         self.modo_paciente = "Selecionar Existente"
         self.laudo_texto = ""
+        self.arquivos_processados = []
+        self.texto_exames_acumulado = ""
         
         caminho = os.path.join(self.get_pasta_bd(), f"{nome}.json")
         if os.path.exists(caminho):
@@ -126,14 +135,27 @@ class ClinicoState(rx.State):
             self.paciente_ativo = self.novo_nome_paciente
             self.modo_paciente = "Selecionar Existente"
             self.novo_nome_paciente = ""
+            self.arquivos_processados = []
+            self.texto_exames_acumulado = ""
             
             if self.paciente_ativo not in self.lista_pacientes:
                 self.lista_pacientes.append(self.paciente_ativo)
             
+            # 1. CORREÇÃO: Salvar o paciente na tabela do Supabase
+            if supabase:
+                try:
+                    supabase.table("pacientes").insert({
+                        "user_id": self.usuario_id,
+                        "nome": self.paciente_ativo
+                    }).execute()
+                except Exception as e:
+                    print(f"Erro ao salvar no Supabase: {e}")
+            
+            # 2. Mantém o salvamento local JSON
             caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
             if not os.path.exists(caminho):
                 with open(caminho, 'w', encoding='utf-8') as f:
-                    json.dump([{"modulo": "Cadastro Inicial", "biometria": {
+                    json.dump([{"modulo": "Cadastro Inicial", "data": datetime.now().strftime("%d/%m/%Y"), "biometria": {
                         "idade": self.idade_paciente,
                         "sexo": self.sexo_paciente,
                         "peso": self.peso_paciente,
@@ -162,7 +184,7 @@ class ClinicoState(rx.State):
                 except: historico = []
         
         if not historico:
-            historico.append({"modulo": "Atualização de Perfil", "laudo": ""})
+            historico.append({"modulo": "Atualização de Perfil", "laudo": "", "data": datetime.now().strftime("%d/%m/%Y")})
             
         historico[-1]["biometria"] = {
             "idade": self.idade_paciente,
@@ -181,7 +203,7 @@ class ClinicoState(rx.State):
         if not self.paciente_ativo:
             yield rx.window_alert("Selecione ou crie um paciente primeiro.")
             return
-        if not files:
+        if not files and not self.texto_exames_acumulado:
             yield rx.window_alert("Anexe pelo menos um exame em PDF.")
             return
         
@@ -189,12 +211,31 @@ class ClinicoState(rx.State):
         yield
 
         try:
-            texto_completo = ""
+            # CORREÇÃO 3: Acumulador inteligente de exames (Sangue + Bioimpedância)
             for file in files:
-                upload_data = await file.read()
-                # Chama a função isolada no novo módulo extrator.py
-                texto_extraido = extrair_texto_pdf_bytes(upload_data)
-                if texto_extraido: texto_completo += f"\n--- DOCUMENTO PDF ---\n{texto_extraido}"
+                if file.filename not in self.arquivos_processados:
+                    upload_data = await file.read()
+                    texto_extraido = extrair_texto_pdf_bytes(upload_data)
+                    if texto_extraido: 
+                        self.texto_exames_acumulado += f"\n--- DOCUMENTO PDF: {file.filename} ---\n{texto_extraido}\n"
+                    self.arquivos_processados.append(file.filename)
+
+            # Prepara o histórico
+            caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
+            historico = []
+            if os.path.exists(caminho):
+                with open(caminho, 'r', encoding='utf-8') as f:
+                    try: historico = json.load(f)
+                    except: historico = []
+            
+            # CORREÇÃO 2: Buscar o laudo anterior e a data para o cruzamento de dados
+            laudo_anterior = ""
+            data_anterior = ""
+            for registro in reversed(historico):
+                if registro.get("laudo"):
+                    laudo_anterior = registro["laudo"]
+                    data_anterior = registro.get("data", "Consulta anterior")
+                    break
 
             paciente_dados = {
                 "nome": self.paciente_ativo,
@@ -203,20 +244,18 @@ class ClinicoState(rx.State):
                 "peso": self.peso_paciente,
                 "atividade": self.atividade_fisica,
                 "objetivo": self.objetivo_paciente,
-                "contexto": self.contexto_clinico
+                "contexto": self.contexto_clinico,
+                "laudo_anterior": laudo_anterior,
+                "data_anterior": data_anterior
             }
 
-            self.laudo_texto = analisador.processar_exames_clinicos(texto_completo, paciente_dados, self.modulo_analise)
+            self.laudo_texto = analisador.processar_exames_clinicos(self.texto_exames_acumulado, paciente_dados, self.modulo_analise)
             
-            caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
-            historico = []
-            if os.path.exists(caminho):
-                with open(caminho, 'r', encoding='utf-8') as f:
-                    try: historico = json.load(f)
-                    except: historico = []
-            
+            # Salvar novo laudo com a data atual
+            data_atual = datetime.now().strftime("%d/%m/%Y")
             historico.append({
                 "modulo": self.modulo_analise, 
+                "data": data_atual,
                 "laudo": self.laudo_texto,
                 "biometria": {
                     "idade": self.idade_paciente,
@@ -237,6 +276,5 @@ class ClinicoState(rx.State):
 
     def baixar_pdf(self):
         if not self.laudo_texto: return rx.window_alert("Não há laudo para descarregar.")
-        # Chama a função isolada no novo módulo pdf_gerador.py
         pdf_bytes = gerar_pdf_simples(self.laudo_texto, self.paciente_ativo)
         return rx.download(data=pdf_bytes, filename=f"Dossie_{self.paciente_ativo.replace(' ', '_')}.pdf")
