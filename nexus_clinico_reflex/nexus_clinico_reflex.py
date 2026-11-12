@@ -232,3 +232,12 @@ def dashboard_principal() -> rx.Component:
         ),
         width="100vw", height="100vh"
     ) # <-- ESTE FECHA O CONDICIONAL DO PACIENTE ATIVO E O FICHEIRO
+def index() -> rx.Component:
+    return rx.cond(
+        ClinicoState.esta_autenticado,
+        dashboard_principal(),
+        tela_login()
+    )
+
+app = rx.App()
+app.add_page(index)
