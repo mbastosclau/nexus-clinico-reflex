@@ -180,35 +180,51 @@ def dashboard_principal() -> rx.Component:
                         width="100%", padding="5", margin_bottom="4"
                     ),
                     
-                   # UPLOADS UNIFICADOS
+                   # UPLOADS SEPARADOS
                     rx.card(
                         rx.vstack(
                             rx.heading("2. Importação de Exames", size="4", color="#334155"),
-                            rx.text("Exames de Sangue e Bioimpedância (Múltiplos PDFs)", weight="bold", size="2"),
+                            rx.text("Carregue os PDFs e clique em Confirmar. (Pode carregar vários PDFs de uma vez em cada categoria)", size="2", color="#64748b"),
                             
-                            rx.upload(
-                                rx.text("Arraste os exames aqui (Sangue, Bioimpedância, etc)"),
-                                id="upload_exames",
-                                multiple=True,
-                                border="1px dotted black",
-                                padding="2em",
+                            rx.hstack(
+                                # CAIXA 1: SANGUE
+                                rx.box(
+                                    rx.text("🩸 Laboratoriais (Sangue)", size="2", weight="bold"),
+                                    rx.upload(
+                                        rx.text("Arraste exames de sangue", size="1"),
+                                        id="up_sangue",
+                                        multiple=True,
+                                        border="1px dashed #cbd5e1", padding="2em", border_radius="6px"
+                                    ),
+                                    rx.button("Confirmar Sangue", on_click=ClinicoState.confirmar_sangue(rx.upload_files(upload_id="up_sangue")), size="1", color_scheme="red", margin_top="2", width="100%"),
+                                    rx.foreach(ClinicoState.arquivos_sangue, lambda arq: rx.text("📄 " + arq, size="1", color="green")),
+                                    width="50%"
+                                ),
+                                # CAIXA 2: BIOIMPEDÂNCIA
+                                rx.box(
+                                    rx.text("⚖️ Bioimpedância / Imagem", size="2", weight="bold"),
+                                    rx.upload(
+                                        rx.text("Arraste Bioimpedância", size="1"),
+                                        id="up_bio",
+                                        multiple=True,
+                                        border="1px dashed #cbd5e1", padding="2em", border_radius="6px"
+                                    ),
+                                    rx.button("Confirmar Bio", on_click=ClinicoState.confirmar_bio(rx.upload_files(upload_id="up_bio")), size="1", color_scheme="blue", margin_top="2", width="100%"),
+                                    rx.foreach(ClinicoState.arquivos_bio, lambda arq: rx.text("📄 " + arq, size="1", color="green")),
+                                    width="50%"
+                                ),
+                                spacing="4", width="100%", align_items="start"
                             ),
                             
                             rx.button(
                                 "PROCESSAR DOSSIÊ EXECUTIVO", 
-                                on_click=ClinicoState.processar_laudo(rx.upload_files(upload_id="upload_exames")), 
+                                on_click=ClinicoState.processar_laudo, 
                                 loading=ClinicoState.em_processamento, 
-                                width="100%", 
-                                size="4", 
-                                background_color="#1e3a8a", 
-                                color="white", 
-                                margin_top="4"
+                                width="100%", size="4", background_color="#1e3a8a", color="white", margin_top="4"
                             ),
                             width="100%"
                         ),
-                        width="100%", 
-                        padding="5", 
-                        margin_bottom="4"
+                        width="100%", padding="5", margin_bottom="4"
                     ),
                     
                     # RESULTADO E PDF
