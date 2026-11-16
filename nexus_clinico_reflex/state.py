@@ -172,7 +172,37 @@ class ClinicoState(rx.State):
         except Exception as e:
             print(f"Erro ao excluir paciente: {e}")
 
+    def salvar_perfil_biometrico(self):
+        if not supabase or not self.paciente_ativo: 
+            return rx.window_alert("Selecione um paciente primeiro.")
+        try:
+            # Busca o ID do paciente
+            pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
+            if pac_res.data:
+                pac_id = pac_res.data[0]["id"]
+                
+                # Salva o perfil como um registo
+                supabase.table("prontuarios").insert({
+                    "paciente_id": pac_id,
+                    "profissional_id": self.usuario_id,
+                    "data_atendimento": datetime.now().isoformat(),
+                    "modulo": "Atualização de Perfil",
+                    "laudo_texto": "Perfil biométrico atualizado.",
+                    "biometria": {
+                        "idade": self.idade_paciente,
+                        "sexo": self.sexo_paciente,
+                        "peso": self.peso_paciente,
+                        "objetivo": self.objetivo_paciente,
+                        "atividade": self.atividade_fisica
+                    }
+                }).execute()
+                
+                self.set_paciente_ativo(self.paciente_ativo)
+                return rx.window_alert("✅ Perfil atualizado com sucesso!")
+        except Exception as e:
+            print(f"Erro ao salvar perfil: {e}")
 
+    
     def limpar_uploads(self):
         self.arquivos_processados = []
         self.texto_exames_acumulado = ""
