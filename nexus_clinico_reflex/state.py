@@ -21,7 +21,6 @@ if SUPABASE_URL and SUPABASE_KEY:
         pass
 
 class ClinicoState(rx.State):
-    # Variáveis de Estado
     historico_consultas: list[dict] = []
     esta_autenticado: bool = False
     usuario_id: str = ""
@@ -45,7 +44,6 @@ class ClinicoState(rx.State):
     em_processamento: bool = False
     laudo_texto: str = ""
     
-    # Acumuladores de memória
     arquivos_processados: list[str] = []
     texto_exames_acumulado: str = ""
     arquivos_sangue: list[str] = []
@@ -88,12 +86,12 @@ class ClinicoState(rx.State):
         self.usuario_id = ""
         self.paciente_ativo = ""
         self.laudo_texto = ""
-        self.limpar_uploads() # Limpa os arquivos ao sair
+        self.limpar_uploads()
 
     def carregar_pacientes(self):
         if not self.usuario_id or not supabase: return
         try:
-            res = supabase.table("pacientes").select("*").eq("profissional_id", self.usuario_id).execute()
+            res = supabase.table("pacientes").select("*").eq("user_id", self.usuario_id).execute()
             self.lista_pacientes = [p["nome"] for p in res.data] if res.data else []
             if not self.paciente_ativo and self.lista_pacientes:
                 self.set_paciente_ativo(self.lista_pacientes[0])
@@ -153,7 +151,7 @@ class ClinicoState(rx.State):
         if supabase:
             try:
                 supabase.table("pacientes").insert({
-                    "profissional_id": self.usuario_id, 
+                    "user_id": self.usuario_id, 
                     "nome": self.paciente_ativo
                 }).execute()
             except Exception as e:
@@ -162,7 +160,7 @@ class ClinicoState(rx.State):
     def excluir_paciente(self):
         if not supabase or not self.paciente_ativo: return
         try:
-            pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("profissional_id", self.usuario_id).execute()
+            pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
             if pac_res.data:
                 pac_id = pac_res.data[0]["id"]
                 supabase.table("prontuarios").delete().eq("paciente_id", pac_id).execute()
@@ -176,12 +174,10 @@ class ClinicoState(rx.State):
         if not supabase or not self.paciente_ativo: 
             return rx.window_alert("Selecione um paciente primeiro.")
         try:
-            # Busca o ID do paciente
             pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
             if pac_res.data:
                 pac_id = pac_res.data[0]["id"]
                 
-                # Salva o perfil como um registo
                 supabase.table("prontuarios").insert({
                     "paciente_id": pac_id,
                     "profissional_id": self.usuario_id,
@@ -202,7 +198,6 @@ class ClinicoState(rx.State):
         except Exception as e:
             print(f"Erro ao salvar perfil: {e}")
 
-    
     def limpar_uploads(self):
         self.arquivos_processados = []
         self.texto_exames_acumulado = ""
@@ -247,7 +242,6 @@ class ClinicoState(rx.State):
             laudo_anterior = ""
             data_anterior = ""
             if self.historico_consultas:
-                # Pega o primeiro da lista, que é o mais recente devido ao order desc no SQL
                 ultima_consulta = self.historico_consultas[0]
                 laudo_anterior = ultima_consulta["laudo"]
                 data_anterior = ultima_consulta["data"]
@@ -267,7 +261,7 @@ class ClinicoState(rx.State):
             self.laudo_texto = analisador.processar_exames_clinicos(self.texto_exames_acumulado, paciente_dados, self.modulo_analise)
             
             if supabase:
-                pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("profissional_id", self.usuario_id).execute()
+                pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
                 if pac_res.data:
                     paciente_id = pac_res.data[0]["id"]
                     
