@@ -1,5 +1,4 @@
 import os
-import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from . import conhecimento
@@ -12,10 +11,8 @@ def processar_exames_clinicos(texto_exames: str, paciente: dict, modulo: str) ->
     except Exception as e:
         return f"Erro de configuração da API: {str(e)}"
 
-    # Carrega a tabela TACO e PDFs
     base_literatura = conhecimento.carregar_base_conhecimento()
 
-    # CORREÇÃO 2: Injetar o histórico do paciente (se houver) no prompt mestre
     historico_prompt = ""
     if paciente.get('laudo_anterior'):
         historico_prompt = f"""
@@ -41,8 +38,14 @@ def processar_exames_clinicos(texto_exames: str, paciente: dict, modulo: str) ->
     DOCUMENTOS OFICIAIS DE BASE (TACO E DIRETRIZES DO PROJETO):
     {base_literatura}
     
+    INSTRUÇÃO DE COMPARAÇÃO EVOLUTIVA:
+    O paciente possui o seguinte histórico clínico/anamnese: {paciente.get('contexto', '')}
+    E o seguinte laudo anterior: {paciente.get('laudo_anterior', '')}
+    
+    SE HOUVER UM LAUDO ANTERIOR FORNECIDO: Você DEVE obrigatoriamente criar uma seção intitulada "COMPARAÇÃO EVOLUTIVA". Faça o cruzamento direto dos marcadores novos com os marcadores do laudo antigo e declare expressamente se houve MELHORA, PIORA ou ESTABILIZAÇÃO do quadro (ex: "Glicemia reduziu de 120 para 105 - Melhora"). Avalie os exames novos sempre à luz das doenças de base e medicamentos relatados na anamnese.
+
     DIRETRIZ CLÍNICA - SÍNTESE EXECUTIVA (ECONOMIA DE TOKENS):
-    Você é um Copiloto Médico Sênior. O usuário final já é um médico experiente, portanto, É ESTRITAMENTE PROIBIDO explicar conceitos básicos de medicina (ex: não explique o que é HOMA-IR ou por que o jejum não é mais necessário). Vá direto aos achados.
+    Você é um Copiloto Médico Sênior. O usuário final já é um médico experiente, portanto, É ESTRITAMENTE PROIBIDO explicar conceitos básicos de medicina. Vá direto aos achados.
     
     REGRAS DE CONCISÃO EXTREMA (MÁXIMO DE 2 PÁGINAS):
     1. Na Seção 2, agrupe os eixos em BULLET POINTS (tópicos curtos). Proibido usar parágrafos longos. Ignore eixos 100% normais se não forem relevantes.
@@ -52,7 +55,7 @@ def processar_exames_clinicos(texto_exames: str, paciente: dict, modulo: str) ->
     
     ESTRUTURA OBRIGATÓRIA:
     1. RESUMO EXECUTIVO E ALERTAS
-    2. ANÁLISE DOS EIXOS METABÓLICOS (Apenas achados relevantes, em tópicos diretos)
+    2. ANÁLISE DOS EIXOS METABÓLICOS E COMPARAÇÃO EVOLUTIVA (Apenas achados relevantes, em tópicos diretos, integrando o histórico se houver)
     3. PLANO DE AÇÃO E ESTRATÉGIA NUTRICIONAL (Ultra-conciso, com 3-4 exemplos TACO)
     4. PARECER, REFERENCIAL TEÓRICO (Citar 2-3 fontes em 1 linha) E RESSALVA LEGAL (Incluir a frase de responsabilidade do profissional).
     """
@@ -62,7 +65,6 @@ def processar_exames_clinicos(texto_exames: str, paciente: dict, modulo: str) ->
     laudo_acumulado = ""
 
     try:
-        # Loop idêntico ao do Nexus Estética para evitar laudos cortados
         for tentativa in range(3):
             try:
                 resposta = client.messages.create(
@@ -100,13 +102,11 @@ def processar_exames_clinicos(texto_exames: str, paciente: dict, modulo: str) ->
             motivo_parada = getattr(resposta, "stop_reason", "")
             texto_lower = laudo_acumulado.lower()
 
-            # Condição de paragem
             concluiu_secao_4 = ("4." in laudo_acumulado and "responsabilidade" in texto_lower)
 
             if concluiu_secao_4 or (motivo_parada != "max_tokens" and "4." in laudo_acumulado):
                 break
 
-            # Força a IA a continuar de onde parou
             mensagens_api = [
                 {"role": "user", "content": prompt_mestre},
                 {"role": "assistant", "content": laudo_acumulado},

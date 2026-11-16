@@ -21,6 +21,8 @@ if SUPABASE_URL and SUPABASE_KEY:
         pass
 
 class ClinicoState(rx.State):
+    # Variáveis de Estado
+    historico_consultas: list[dict] = []
     esta_autenticado: bool = False
     usuario_id: str = ""
     email_login: str = ""
@@ -86,108 +88,97 @@ class ClinicoState(rx.State):
         self.usuario_id = ""
         self.paciente_ativo = ""
         self.laudo_texto = ""
-        self.arquivos_processados = []
-        self.texto_exames_acumulado = ""
-        self.arquivos_sangue = []
-        self.arquivos_bio = []
-
-    def get_pasta_bd(self) -> str:
-        pasta = f"banco_pacientes_{self.usuario_id}"
-        os.makedirs(pasta, exist_ok=True)
-        return pasta
+        self.limpar_uploads() # Limpa os arquivos ao sair
 
     def carregar_pacientes(self):
-        if not self.usuario_id: return
-        pasta = self.get_pasta_bd()
-        self.lista_pacientes = [f.replace('.json', '') for f in os.listdir(pasta) if f.endswith('.json')]
-        if not self.paciente_ativo and self.lista_pacientes:
-            self.set_paciente_ativo(self.lista_pacientes[0])
+        if not self.usuario_id or not supabase: return
+        try:
+            res = supabase.table("pacientes").select("*").eq("user_id", self.usuario_id).execute()
+            self.lista_pacientes = [p["nome"] for p in res.data] if res.data else []
+            if not self.paciente_ativo and self.lista_pacientes:
+                self.set_paciente_ativo(self.lista_pacientes[0])
+        except Exception as e:
+            print(f"Erro ao carregar pacientes: {e}")
 
     def set_paciente_ativo(self, nome: str):
         self.paciente_ativo = nome
         self.modo_paciente = "Selecionar Existente"
         self.laudo_texto = ""
+        self.limpar_uploads()
+        self.historico_consultas = []
+        
+        if not supabase: return
+        
+        try:
+            pac_res = supabase.table("pacientes").select("id").eq("nome", nome).eq("user_id", self.usuario_id).execute()
+            if not pac_res.data: return
+            paciente_id = pac_res.data[0]["id"]
+
+            pront_res = supabase.table("prontuarios").select("*").eq("paciente_id", paciente_id).order("data_atendimento", desc=True).execute()
+            
+            if pront_res.data:
+                self.historico_consultas = [{
+                    "data": p.get("data_atendimento", "")[:10],
+                    "modulo": p.get("modulo", "Análise Clínica"),
+                    "laudo": p.get("laudo_texto", "")
+                } for p in pront_res.data]
+
+                ultimo_pront = pront_res.data[0]
+                biometria = ultimo_pront.get("biometria", {})
+                if biometria:
+                    self.idade_paciente = str(biometria.get("idade", "45"))
+                    self.sexo_paciente = biometria.get("sexo", "Masculino")
+                    self.peso_paciente = str(biometria.get("peso", "85.0"))
+                    self.objetivo_paciente = biometria.get("objetivo", "Emagrecimento")
+                    self.atividade_fisica = biometria.get("atividade", "Moderado")
+            else:
+                self.idade_paciente = "45"
+                self.sexo_paciente = "Masculino"
+                self.peso_paciente = "85.0"
+                
+        except Exception as e:
+            print(f"Erro ao carregar dados do paciente: {e}")
+
+    def confirmar_novo_paciente(self):
+        if not self.novo_nome_paciente: return rx.window_alert("Digite o nome do paciente.")
+        
+        self.paciente_ativo = self.novo_nome_paciente
+        self.modo_paciente = "Selecionar Existente"
+        self.novo_nome_paciente = ""
+        self.historico_consultas = []
+        
+        if self.paciente_ativo not in self.lista_pacientes:
+            self.lista_pacientes.append(self.paciente_ativo)
+            
+        if supabase:
+            try:
+                supabase.table("pacientes").insert({
+                    "user_id": self.usuario_id, 
+                    "nome": self.paciente_ativo
+                }).execute()
+            except Exception as e:
+                print(f"Erro ao criar paciente: {e}")
+
+    def excluir_paciente(self):
+        if not supabase or not self.paciente_ativo: return
+        try:
+            pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
+            if pac_res.data:
+                pac_id = pac_res.data[0]["id"]
+                supabase.table("prontuarios").delete().eq("paciente_id", pac_id).execute()
+                supabase.table("pacientes").delete().eq("id", pac_id).execute()
+            self.paciente_ativo = ""
+            self.carregar_pacientes()
+        except Exception as e:
+            print(f"Erro ao excluir paciente: {e}")
+
+
+    def limpar_uploads(self):
         self.arquivos_processados = []
         self.texto_exames_acumulado = ""
         self.arquivos_sangue = []
         self.arquivos_bio = []
-        
-        caminho = os.path.join(self.get_pasta_bd(), f"{nome}.json")
-        if os.path.exists(caminho):
-            with open(caminho, 'r', encoding='utf-8') as f:
-                try:
-                    historico = json.load(f)
-                    if historico and isinstance(historico, list):
-                        ultimo_registro = historico[-1]
-                        biometria = ultimo_registro.get("biometria", {})
-                        if biometria:
-                            self.idade_paciente = biometria.get("idade", "45")
-                            self.sexo_paciente = biometria.get("sexo", "Masculino")
-                            self.peso_paciente = biometria.get("peso", "85.0")
-                            self.objetivo_paciente = biometria.get("objetivo", "Emagrecimento (Foco Clínico / Síndrome Metabólica)")
-                            self.atividade_fisica = biometria.get("atividade", "Moderado (Musculação 3-4x)")
-                            return 
-                except Exception as e:
-                    print(f"Erro ao carregar dados: {e}")
-        
-        self.idade_paciente = "45"
-        self.sexo_paciente = "Masculino"
-        self.peso_paciente = "85.0"
-
-    def confirmar_novo_paciente(self):
-        if self.novo_nome_paciente:
-            self.paciente_ativo = self.novo_nome_paciente
-            self.modo_paciente = "Selecionar Existente"
-            self.novo_nome_paciente = ""
-            self.arquivos_processados = []
-            self.texto_exames_acumulado = ""
-            self.arquivos_sangue = []
-            self.arquivos_bio = []
-            
-            if self.paciente_ativo not in self.lista_pacientes:
-                self.lista_pacientes.append(self.paciente_ativo)
-            
-            if supabase:
-                try:
-                    supabase.table("pacientes").insert({"user_id": self.usuario_id, "nome": self.paciente_ativo}).execute()
-                except Exception as e:
-                    print(f"Erro Supabase: {e}")
-            
-            caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
-            if not os.path.exists(caminho):
-                with open(caminho, 'w', encoding='utf-8') as f:
-                    json.dump([{"modulo": "Cadastro Inicial", "data": datetime.now().strftime("%d/%m/%Y"), "biometria": {
-                        "idade": self.idade_paciente, "sexo": self.sexo_paciente, "peso": self.peso_paciente,
-                        "objetivo": self.objetivo_paciente, "atividade": self.atividade_fisica
-                    }}], f, ensure_ascii=False, indent=4)
-        else:
-            return rx.window_alert("Digite o nome do paciente.")
-
-    def excluir_paciente(self):
-        if self.paciente_ativo:
-            caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
-            if os.path.exists(caminho): os.remove(caminho)
-            self.paciente_ativo = ""
-            self.carregar_pacientes()
-
-    def salvar_perfil_biometrico(self):
-        if not self.paciente_ativo: return rx.window_alert("Selecione um paciente primeiro.")
-        caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
-        historico = []
-        if os.path.exists(caminho):
-            with open(caminho, 'r', encoding='utf-8') as f:
-                try: historico = json.load(f)
-                except: historico = []
-        if not historico:
-            historico.append({"modulo": "Atualização de Perfil", "laudo": "", "data": datetime.now().strftime("%d/%m/%Y")})
-            
-        historico[-1]["biometria"] = {
-            "idade": self.idade_paciente, "sexo": self.sexo_paciente, "peso": self.peso_paciente,
-            "objetivo": self.objetivo_paciente, "atividade": self.atividade_fisica
-        }
-        with open(caminho, 'w', encoding='utf-8') as f:
-            json.dump(historico, f, ensure_ascii=False, indent=4)
-        return rx.window_alert("✅ Perfil salvo!")
+        return [rx.clear_selected_files("up_sangue"), rx.clear_selected_files("up_bio")]
 
     async def confirmar_sangue(self, files: list[rx.UploadFile]):
         if not files: return
@@ -223,20 +214,13 @@ class ClinicoState(rx.State):
         yield
 
         try:
-            caminho = os.path.join(self.get_pasta_bd(), f"{self.paciente_ativo}.json")
-            historico = []
-            if os.path.exists(caminho):
-                with open(caminho, 'r', encoding='utf-8') as f:
-                    try: historico = json.load(f)
-                    except: historico = []
-            
             laudo_anterior = ""
             data_anterior = ""
-            for registro in reversed(historico):
-                if registro.get("laudo"):
-                    laudo_anterior = registro["laudo"]
-                    data_anterior = registro.get("data", "Consulta anterior")
-                    break
+            if self.historico_consultas:
+                # Pega o primeiro da lista, que é o mais recente devido ao order desc no SQL
+                ultima_consulta = self.historico_consultas[0]
+                laudo_anterior = ultima_consulta["laudo"]
+                data_anterior = ultima_consulta["data"]
 
             paciente_dados = {
                 "nome": self.paciente_ativo,
@@ -252,22 +236,27 @@ class ClinicoState(rx.State):
 
             self.laudo_texto = analisador.processar_exames_clinicos(self.texto_exames_acumulado, paciente_dados, self.modulo_analise)
             
-            data_atual = datetime.now().strftime("%d/%m/%Y")
-            historico.append({
-                "modulo": self.modulo_analise, 
-                "data": data_atual,
-                "laudo": self.laudo_texto,
-                "biometria": {
-                    "idade": self.idade_paciente,
-                    "sexo": self.sexo_paciente,
-                    "peso": self.peso_paciente,
-                    "objetivo": self.objetivo_paciente,
-                    "atividade": self.atividade_fisica
-                }
-            })
-            
-            with open(caminho, 'w', encoding='utf-8') as f:
-                json.dump(historico, f, ensure_ascii=False, indent=4)
+            if supabase:
+                pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
+                if pac_res.data:
+                    paciente_id = pac_res.data[0]["id"]
+                    
+                    supabase.table("prontuarios").insert({
+                        "paciente_id": paciente_id,
+                        "profissional_id": self.usuario_id,
+                        "data_atendimento": datetime.now().isoformat(),
+                        "modulo": self.modulo_analise,
+                        "laudo_texto": self.laudo_texto,
+                        "biometria": {
+                            "idade": self.idade_paciente,
+                            "sexo": self.sexo_paciente,
+                            "peso": self.peso_paciente,
+                            "objetivo": self.objetivo_paciente,
+                            "atividade": self.atividade_fisica
+                        }
+                    }).execute()
+                    
+                    self.set_paciente_ativo(self.paciente_ativo)
 
         except Exception as e: self.laudo_texto = f"Erro Crítico: {str(e)}"
         finally:
@@ -278,3 +267,8 @@ class ClinicoState(rx.State):
         if not self.laudo_texto: return rx.window_alert("Não há laudo para descarregar.")
         pdf_bytes = gerar_pdf_simples(self.laudo_texto, self.paciente_ativo)
         return rx.download(data=pdf_bytes, filename=f"Dossie_{self.paciente_ativo.replace(' ', '_')}.pdf")
+
+    def baixar_laudo_historico(self, laudo_texto: str, data_str: str):
+        if not laudo_texto: return rx.window_alert("Laudo vazio.")
+        pdf_bytes = gerar_pdf_simples(laudo_texto, self.paciente_ativo)
+        return rx.download(data=pdf_bytes, filename=f"Dossie_{self.paciente_ativo.replace(' ', '_')}_{data_str}.pdf")

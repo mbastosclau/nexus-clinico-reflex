@@ -174,12 +174,58 @@ def dashboard_principal() -> rx.Component:
                                 width="100%"
                             ),
                             rx.button("💾 Salvar Perfil (Sem Exame)", on_click=ClinicoState.salvar_perfil_biometrico, color_scheme="gray", variant="outline", margin_top="2"),
-                            rx.box(rx.text("Contexto (Opcional)"), rx.text_area(placeholder="Uso de medicamentos, sintomas, rotina alimentar...", 						                    on_change=ClinicoState.set_contexto_clinico, width="100%"), width="100%", margin_top="2"),
+                            rx.box(
+                                rx.text("Anamnese / Histórico Clínico", weight="bold", size="2"),
+                                rx.text_area(
+                                    placeholder="Descreva doenças de base (Diabetes, Hipertensão, etc), medicamentos em uso contínuo, queixas atuais, histórico familiar e qualquer dado relevante para o cruzamento da IA...", 
+                                    value=ClinicoState.contexto_clinico, 
+                                    on_change=ClinicoState.set_contexto_clinico, 
+                                    width="100%", 
+                                    rows="5"
+                                ), 
+                                width="100%", margin_top="2"
+                            ),
                             width="100%", align_items="start"
                         ),
                         width="100%", padding="5", margin_bottom="4"
                     ),
-                    
+                   
+		            # HISTÓRICO DE CONSULTAS ANTERIORES
+                    rx.cond(
+                        ClinicoState.historico_consultas.length() > 0,
+                        rx.card(
+                            rx.vstack(
+                                rx.heading("📂 Histórico de Laudos Anteriores", size="4", color="#334155"),
+                                rx.text("Últimos dossiês gerados para este paciente:", size="2", color="#64748b", margin_bottom="2"),
+                                
+                                rx.foreach(
+                                    ClinicoState.historico_consultas,
+                                    lambda consulta: rx.box(
+                                        rx.hstack(
+                                            rx.text(consulta["data"] + " | " + consulta["modulo"], weight="bold", color="#1e3a8a"),
+                                            rx.spacer(),
+                                            rx.button(
+                                                rx.icon("download", size=16), " Baixar PDF", 
+                                                on_click=lambda: ClinicoState.baixar_laudo_historico(consulta["laudo"], consulta["data"]),
+                                                size="1", color_scheme="gray", variant="outline"
+                                            ),
+                                            width="100%", align_items="center"
+                                        ),
+                                        rx.box(
+                                            rx.markdown(consulta["laudo"]),
+                                            background_color="#f1f5f9", 
+                                            padding="4", border_radius="8px", margin_top="2", border="1px solid #e2e8f0",
+                                            max_height="150px", overflow_y="auto"
+                                        ),
+                                        margin_bottom="4", width="100%"
+                                    )
+                                ),
+                                width="100%"
+                            ),
+                            width="100%", padding="5", margin_bottom="4", border="1px solid #cbd5e1"
+                        )
+                    ),
+ 
                    # UPLOADS SEPARADOS
                     rx.card(
                         rx.vstack(
@@ -216,6 +262,17 @@ def dashboard_principal() -> rx.Component:
                                 spacing="4", width="100%", align_items="start"
                             ),
                             
+                            # --- BOTÃO DE LIMPAR ANEXOS ---
+                            rx.hstack(
+                                rx.spacer(),
+                                rx.button(
+                                    rx.icon("trash", size=16), "Limpar Exames Selecionados", 
+                                    on_click=ClinicoState.limpar_uploads, 
+                                    color_scheme="red", variant="soft", size="2"
+                                ),
+                                width="100%", margin_top="2"
+                            ),
+                            
                             rx.button(
                                 "PROCESSAR DOSSIÊ EXECUTIVO", 
                                 on_click=ClinicoState.processar_laudo, 
@@ -242,12 +299,13 @@ def dashboard_principal() -> rx.Component:
                         rx.text("")
                     ),
                     width="100%", max_width="900px", margin="0 auto"
-                ) # <-- ESTE FECHA O SEU VSTACK DA LINHA 124
-            ), # <-- ESTE FECHA A CAIXA (BOX) PRINCIPAL DA TELA
+                )
+            ), 
             width="100%", height="100vh", overflow_y="auto", padding="10", background_color="#f8fafc"
         ),
         width="100vw", height="100vh"
-    ) # <-- ESTE FECHA O CONDICIONAL DO PACIENTE ATIVO E O FICHEIRO
+    )
+
 def index() -> rx.Component:
     return rx.cond(
         ClinicoState.esta_autenticado,
