@@ -202,7 +202,7 @@ def dashboard_principal() -> rx.Component:
                                     ClinicoState.historico_consultas,
                                     lambda consulta: rx.box(
                                         rx.hstack(
-                                            rx.text(consulta["data"] + " | " + consulta["modulo"], weight="bold", color="#1e3a8a"),
+                                            rx.text(f"{consulta['data']} | {consulta['modulo']}", weight="bold", color="#1e3a8a"),
                                             rx.spacer(),
                                             rx.button(
                                                 rx.icon("download", size=16), " Baixar PDF", 
