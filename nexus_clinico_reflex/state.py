@@ -140,6 +140,19 @@ class ClinicoState(rx.State):
     def confirmar_novo_paciente(self):
         if not self.novo_nome_paciente: return rx.window_alert("Digite o nome do paciente.")
         
+        if supabase:
+            try:
+                res = supabase.table("pacientes").insert({
+                    "user_id": self.usuario_id, 
+                    "nome": self.novo_nome_paciente
+                }).execute()
+                
+                # Se o banco recusar silenciosamente devido a restrições de segurança
+                if not res.data:
+                    return rx.window_alert("ERRO DE GRAVAÇÃO: O Supabase bloqueou a inserção do paciente. Execute o comando SQL para desativar o RLS.")
+            except Exception as e:
+                return rx.window_alert(f"ERRO DE BANCO DE DADOS: {str(e)}")
+        
         self.paciente_ativo = self.novo_nome_paciente
         self.modo_paciente = "Selecionar Existente"
         self.novo_nome_paciente = ""
@@ -148,14 +161,7 @@ class ClinicoState(rx.State):
         if self.paciente_ativo not in self.lista_pacientes:
             self.lista_pacientes.append(self.paciente_ativo)
             
-        if supabase:
-            try:
-                supabase.table("pacientes").insert({
-                    "user_id": self.usuario_id, 
-                    "nome": self.paciente_ativo
-                }).execute()
-            except Exception as e:
-                print(f"Erro ao criar paciente: {e}")
+        return rx.window_alert("✅ Paciente criado com sucesso e guardado na base de dados!")
 
     def excluir_paciente(self):
         if not supabase or not self.paciente_ativo: return
@@ -168,35 +174,37 @@ class ClinicoState(rx.State):
             self.paciente_ativo = ""
             self.carregar_pacientes()
         except Exception as e:
-            print(f"Erro ao excluir paciente: {e}")
+            rx.window_alert(f"Erro ao excluir: {str(e)}")
 
     def salvar_perfil_biometrico(self):
         if not supabase or not self.paciente_ativo: 
             return rx.window_alert("Selecione um paciente primeiro.")
         try:
             pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
-            if pac_res.data:
-                pac_id = pac_res.data[0]["id"]
-                
-                supabase.table("prontuarios").insert({
-                    "paciente_id": pac_id,
-                    "profissional_id": self.usuario_id,
-                    "data_atendimento": datetime.now().isoformat(),
-                    "modulo": "Atualização de Perfil",
-                    "laudo_texto": "Perfil biométrico atualizado.",
-                    "biometria": {
-                        "idade": self.idade_paciente,
-                        "sexo": self.sexo_paciente,
-                        "peso": self.peso_paciente,
-                        "objetivo": self.objetivo_paciente,
-                        "atividade": self.atividade_fisica
-                    }
-                }).execute()
-                
-                self.set_paciente_ativo(self.paciente_ativo)
-                return rx.window_alert("✅ Perfil atualizado com sucesso!")
+            if not pac_res.data:
+                return rx.window_alert("Erro: O paciente não foi encontrado no banco. Tente criá-lo novamente.")
+            
+            pac_id = pac_res.data[0]["id"]
+            
+            supabase.table("prontuarios").insert({
+                "paciente_id": pac_id,
+                "profissional_id": self.usuario_id,
+                "data_atendimento": datetime.now().isoformat(),
+                "modulo": "Atualização de Perfil",
+                "laudo_texto": "Perfil biométrico atualizado.",
+                "biometria": {
+                    "idade": self.idade_paciente,
+                    "sexo": self.sexo_paciente,
+                    "peso": self.peso_paciente,
+                    "objetivo": self.objetivo_paciente,
+                    "atividade": self.atividade_fisica
+                }
+            }).execute()
+            
+            self.set_paciente_ativo(self.paciente_ativo)
+            return rx.window_alert("✅ Perfil atualizado com sucesso!")
         except Exception as e:
-            print(f"Erro ao salvar perfil: {e}")
+            return rx.window_alert(f"Erro ao salvar perfil: {str(e)}")
 
     def limpar_uploads(self):
         self.arquivos_processados = []
@@ -239,6 +247,23 @@ class ClinicoState(rx.State):
         yield
 
         try:
+            # =========================================================================
+            # TRAVA FINANCEIRA: Só consome saldo da API se o banco de dados estiver OK
+            # =========================================================================
+            paciente_id = None
+            if supabase:
+                pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
+                if not pac_res.data:
+                    self.em_processamento = False
+                    yield rx.window_alert("TRAVA DE SEGURANÇA: Paciente não encontrado no banco de dados. Operação abortada para não gerar custos de API. Crie o paciente novamente.")
+                    return
+                paciente_id = pac_res.data[0]["id"]
+            else:
+                self.em_processamento = False
+                yield rx.window_alert("TRAVA DE SEGURANÇA: Supabase desconectado. Operação abortada.")
+                return
+            # =========================================================================
+
             laudo_anterior = ""
             data_anterior = ""
             if self.historico_consultas:
@@ -258,31 +283,32 @@ class ClinicoState(rx.State):
                 "data_anterior": data_anterior
             }
 
+            # Chama a API da Anthropic apenas após garantir que o banco está funcional
             self.laudo_texto = analisador.processar_exames_clinicos(self.texto_exames_acumulado, paciente_dados, self.modulo_analise)
             
-            if supabase:
-                pac_res = supabase.table("pacientes").select("id").eq("nome", self.paciente_ativo).eq("user_id", self.usuario_id).execute()
-                if pac_res.data:
-                    paciente_id = pac_res.data[0]["id"]
-                    
-                    supabase.table("prontuarios").insert({
-                        "paciente_id": paciente_id,
-                        "profissional_id": self.usuario_id,
-                        "data_atendimento": datetime.now().isoformat(),
-                        "modulo": self.modulo_analise,
-                        "laudo_texto": self.laudo_texto,
-                        "biometria": {
-                            "idade": self.idade_paciente,
-                            "sexo": self.sexo_paciente,
-                            "peso": self.peso_paciente,
-                            "objetivo": self.objetivo_paciente,
-                            "atividade": self.atividade_fisica
-                        }
-                    }).execute()
-                    
-                    self.set_paciente_ativo(self.paciente_ativo)
+            # Grava no histórico final
+            try:
+                supabase.table("prontuarios").insert({
+                    "paciente_id": paciente_id,
+                    "profissional_id": self.usuario_id,
+                    "data_atendimento": datetime.now().isoformat(),
+                    "modulo": self.modulo_analise,
+                    "laudo_texto": self.laudo_texto,
+                    "biometria": {
+                        "idade": self.idade_paciente,
+                        "sexo": self.sexo_paciente,
+                        "peso": self.peso_paciente,
+                        "objetivo": self.objetivo_paciente,
+                        "atividade": self.atividade_fisica
+                    }
+                }).execute()
+                
+                self.set_paciente_ativo(self.paciente_ativo)
+            except Exception as err_gravar:
+                yield rx.window_alert(f"ATENÇÃO: O dossiê foi gerado, mas ocorreu um erro ao guardá-lo: {str(err_gravar)}. Baixe o PDF agora para não o perder!")
 
-        except Exception as e: self.laudo_texto = f"Erro Crítico: {str(e)}"
+        except Exception as e: 
+            self.laudo_texto = f"Erro Crítico Geral: {str(e)}"
         finally:
             self.em_processamento = False
             yield 
